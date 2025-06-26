@@ -7,7 +7,6 @@ const twilio = require("twilio");
 const fs = require("fs");
 const path = require("path");
 const PDFDocument = require("pdfkit");
-const { table } = require("pdfkit-table");
 const listOfAsks = require("./asks");
 const electricianInterviewQuestionnaire = require("./electrician");
 
@@ -147,6 +146,7 @@ async function fetchLatestTranscriptAndSendPDFEmail() {
       transcript,
       convoId: latest.conversation_id,
       results,
+      electricianInterviewQuestionnaire,
     });
 
     await transporter.sendMail({
@@ -174,6 +174,7 @@ function generateTranscriptPDF({
   transcript,
   convoId,
   results,
+  electricianInterviewQuestionnaire,
 }) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40 });
@@ -181,67 +182,170 @@ function generateTranscriptPDF({
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
-    // Header
+    // Header with candidate info
     doc
-      .fontSize(20)
+      .fontSize(22)
       .fillColor("#003366")
-      .text(`${firstName} ${lastName}`, { align: "center" });
+      .text(`${firstName.toUpperCase()} ${lastName.toUpperCase()}`, {
+        align: "center",
+      });
     doc
-      .fontSize(12)
-      .fillColor("black")
-      .text(`Phone: ${phoneNumber}`, { align: "center" });
-    doc.text(`Position: ${occupation}`, { align: "center" });
-    doc.moveDown().moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+      .fontSize(14)
+      .fillColor("#333")
+      .text(`Phone Number: ${phoneNumber}`, { align: "center" });
+    doc
+      .fontSize(14)
+      .fillColor("#333")
+      .text(`Position Applied: ${occupation}`, { align: "center" });
 
-    // Summary
+    doc.moveDown(1);
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#cccccc").stroke();
+    doc.moveDown(1.2);
+
+    // Interview Summary section
     doc
-      .moveDown()
       .fontSize(16)
-      .fillColor("black")
+      .fillColor("#000000")
       .text("Interview Summary", { underline: true });
-    doc.fontSize(11).text(summary || "No summary available");
-    doc.moveDown();
+    doc.moveDown(0.4);
+    doc.fontSize(12).fillColor("#222").text(summary);
 
-    // Table-style Interview Section
+    // Electrician Interview Questionnaire Table
+    doc.moveDown(1.2);
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#cccccc").stroke();
+    doc.moveDown(1);
+
     doc
-      .fontSize(16)
+      .fontSize(18)
       .fillColor("#003366")
-      .text("Interview Responses", { align: "center" });
-    doc.moveDown();
+      .text("Electrician Interview Questionnaire", { align: "center" });
+    doc.moveDown(0.5);
+
+    const tableX = 40;
+    const tableWidth = 515; // Total width from margin to margin (595 - 40*2)
+    const questionColWidth = tableWidth * 0.7; // 70% for questions
+    const answerColWidth = tableWidth * 0.3; // 30% for answers
+    const rowPadding = 5;
+
+    // Table Headers Row
+    let currentY = doc.y;
+    doc.rect(tableX, currentY, questionColWidth, 25).stroke();
+    doc.rect(tableX + questionColWidth, currentY, answerColWidth, 25).stroke();
+    doc.font("Helvetica-Bold").fontSize(12).fillColor("#000000");
+    doc.text(
+      "Questions",
+      questionColWidth / 2 + tableX,
+      currentY + rowPadding,
+      { align: "center", width: questionColWidth, stroke: false }
+    );
+    doc.text(
+      "Answers",
+      answerColWidth / 2 + tableX + questionColWidth,
+      currentY + rowPadding,
+      { align: "center", width: answerColWidth, stroke: false }
+    );
+    doc.y = currentY + 25; // Move cursor down after headers
 
     electricianInterviewQuestionnaire.forEach((category) => {
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(13)
-        .fillColor("#003366")
-        .text(category.categoryTitle);
-      doc.moveDown(0.5);
+      // Category Title Row
+      currentY = doc.y;
+      doc.rect(tableX, currentY, tableWidth, 25).stroke(); // Span full width for category title
+      doc.font("Helvetica-Bold").fontSize(13).fillColor("#003366");
+      doc.text(
+        category.categoryTitle,
+        tableX + rowPadding,
+        currentY + rowPadding,
+        { width: tableWidth - 2 * rowPadding }
+      );
+      doc.y = currentY + 25;
 
-      const rows = category.questions.map((q) => [
-        q.question,
-        results[q.fieldId]?.value || "—",
-      ]);
+      category.questions.forEach((q) => {
+        const questionText = q.question;
+        const answerText =
+          q.fieldId && results[q.fieldId]?.value
+            ? String(results[q.fieldId].value)
+            : "";
 
-      // Draw table
-      doc.table({
-        headers: ["Question", "Answer"],
-        rows,
-        options: {
-          columnSpacing: 15,
-          padding: 5,
-          width: 500,
-        },
+        // Calculate heights for both question and answer to determine row height
+        const questionTextHeight = doc.heightOfString(questionText, {
+          width: questionColWidth - 2 * rowPadding,
+        });
+        const answerTextHeight = doc.heightOfString(answerText, {
+          width: answerColWidth - 2 * rowPadding,
+        });
+        const cellHeight =
+          Math.max(questionTextHeight, answerTextHeight) + 2 * rowPadding;
+
+        currentY = doc.y;
+
+        // Draw cells for the current row
+        doc.rect(tableX, currentY, questionColWidth, cellHeight).stroke();
+        doc
+          .rect(tableX + questionColWidth, currentY, answerColWidth, cellHeight)
+          .stroke();
+
+        // Draw question text
+        doc.font("Helvetica").fontSize(10).fillColor("#000000");
+        doc.text(
+          questionText,
+          questionColWidth / 2 + tableX,
+          currentY + rowPadding,
+          {
+            width: questionColWidth - 2 * rowPadding,
+            align: "center", // Center align question text within its cell
+            stroke: false,
+          }
+        );
+
+        // Draw answer text or blank line
+        doc.font("Helvetica-Oblique").fontSize(10).fillColor("#222"); // Slightly different color for answers
+        if (answerText) {
+          doc.text(
+            answerText,
+            answerColWidth / 2 + tableX + questionColWidth,
+            currentY + rowPadding,
+            {
+              width: answerColWidth - 2 * rowPadding,
+              align: "center", // Center align answer text within its cell
+              stroke: false,
+            }
+          );
+        } else {
+          // Draw a placeholder line if no answer
+          const lineY = currentY + cellHeight - rowPadding; // Position line near bottom of cell
+          doc
+            .moveTo(tableX + questionColWidth + rowPadding, lineY)
+            .lineTo(tableX + tableWidth - rowPadding, lineY)
+            .strokeColor("#cccccc")
+            .stroke();
+        }
+
+        doc.y = currentY + cellHeight; // Move cursor down for the next row
       });
-
-      doc.moveDown();
     });
 
-    // Transcript section
-    doc.moveDown().fontSize(16).text("Full Transcript", { underline: true });
+    // Full Transcript section
+    doc.moveDown(1.2);
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#cccccc").stroke();
+    doc.moveDown(1);
+
+    doc
+      .fontSize(16)
+      .fillColor("#000000")
+      .text("Full Transcript", { underline: true });
+    doc.moveDown(0.4);
+
     transcript.forEach(({ role, message }) => {
       const label = role === "agent" ? "AGENT:" : "CANDIDATE:";
-      doc.font("Helvetica-Bold").text(label, { continued: true });
-      doc.font("Helvetica").text(` ${message}`, { paragraphGap: 8 });
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(12)
+        .fillColor("#003366")
+        .text(label, { continued: true });
+      doc
+        .font("Helvetica")
+        .fillColor("#000000")
+        .text(` ${message}`, { paragraphGap: 10 });
     });
 
     doc.end();
