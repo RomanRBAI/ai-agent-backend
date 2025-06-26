@@ -1,0 +1,131 @@
+const electricianInterviewQuestionnaire = [
+  {
+    categoryTitle: "Years of Experience",
+    questions: [
+      "How many total years have you worked as an electrician?",
+      "How many years have you worked in commercial construction?",
+      "How many years have you worked in industrial construction?",
+      "How many years have you worked in residential construction?",
+    ],
+  },
+  {
+    categoryTitle: "Work Preference and Project Experience",
+    questions: [
+      "What type of work do you prefer—commercial, industrial, or residential? Why?",
+      "Have you worked on multi-story commercial buildings, office spaces, retail centers, or large-scale projects?",
+      "Have you worked on factories, manufacturing plants, or heavy industrial sites?",
+    ],
+  },
+  {
+    categoryTitle: "Tools & Licensing",
+    questions: [
+      "Do you have your own hand tools for electrical work?",
+      "Do you have a state-issued, non-expired electrical license? (Journeyman, Master, or Apprentice?)",
+      "Do you have the hand tools required to perform electrical work on commercial and industrial projects?",
+      "Do you have basic (unbranded) PPE? (Work Boots (Reg Steel Composite), Hard Hat, Safety Glasses, Safety Vest, Other)",
+    ],
+  },
+  {
+    categoryTitle: "Commercial vs. Industrial vs. Residential Experience",
+    questions: [
+      "What percentage of your experience is in commercial work?",
+      "What percentage of your experience is in industrial work?",
+      "What percentage of your experience is in residential work?",
+      "Have you recently done electrical work in commercial buildings (like schools, hospitals, or office spaces)?",
+      "Have you worked in High-Voltage, Medium-Voltage, or Low-Voltage?",
+      "Have you worked in new residential construction or home remodels?",
+      "Do you know other electricians with 2 years of commercial and/or industrial experience?",
+    ],
+  },
+  {
+    categoryTitle: "Work Requirements & Safety",
+    questions: [
+      "How soon could you start if a position were to become available?",
+      "Do you have any upcoming appointments that may hinder you from starting?",
+      "What are your minimum hourly pay requirements?",
+      "Are you currently working? If yes, why are you looking for a new job?",
+      "Do you have any safety training or certifications? (OSHA, Ariel Lift, etc.)",
+      "Can you operate scissor lifts or boom lifts?",
+      "Are you available for overtime or weekend work if needed?",
+      "Do you have the proper identification for employment?",
+      "Are you willing to travel if a per-diem is offered?",
+    ],
+  },
+  {
+    categoryTitle: "Electrical Skills",
+    questions: [
+      "Have you done wire pulling before? (Commercial, Industrial, or Residential?)",
+      "Have you installed electrical conduit in commercial or industrial buildings?",
+      "What types of conduit bending have you done, and on a scale of 1 (entry level) to 5 (advanced) how would you rate yourself?",
+      "• 90-degree bends (1-5)",
+      "• 45-degree bends (1-5)",
+      "• 3-point saddles (used to go over obstacles) (1-5)",
+      "• 4-point saddles (used for more complex offsets) (1-5)",
+      "• Offsets and kicks (used for aligning conduit to electrical boxes) (1-5)",
+      "What tools have you used for bending conduits? And How would you rate yourself on a (1-5) scale?",
+      "• Hand Benders (1-5)",
+      "• Hydraulic Benders (1-5)",
+      "• Mechanical Benders (1-5)",
+      "Do you have experience with the following types of conduit? (EMT) (GRC) (RMC) (RNC) (PVC)",
+      "Have you installed or worked on:",
+      "• Commercial Light Fixture Installation?",
+      "• Industrial Lighting or Motor Controls?",
+      "• Commercial Lighting and Electrical Panels?",
+      "• Switchgear & transformers (Commercial or Industrial settings)?",
+      "How would you rate your NEC | National Electrical Code Knowledge? 1 (entry level) to 5 (advanced)",
+      "Are you experienced with Lock Out Tag Out Procedures?",
+    ],
+  },
+  {
+    categoryTitle: "Blueprint Reading & Layouts",
+    questions: [
+      "Have you worked with commercial electrical blueprints?",
+      "On a scale of 1 (entry level) to 5 (advanced), how would you rate your blueprint reading/interpretation skills?",
+      "Have you used blueprints to:",
+      "• Identify panel locations and circuit layouts?",
+      "• Find conduit runs and wire sizing?",
+      "• Plan power distribution for buildings?",
+      "• Layout conduit before installation?",
+      "• Review one-line diagrams (showing how power flows in a building)?",
+      "• Understand legend and symbol key in a blueprint?",
+      "Have you worked with as-built drawings (blueprints that show final electrical work after installation)?",
+    ],
+  },
+  {
+    categoryTitle: "New Construction, Remodeling & Demolition",
+    questions: [
+      "Have you worked on new commercial buildings from the ground up?",
+      "Have you done remodeling work, like upgrading electrical systems in existing buildings?",
+      "Have you worked on demolition projects where you had to safely remove old wiring?",
+    ],
+  },
+  {
+    categoryTitle: "Industry Experience",
+    questions: [
+      "Office /High Rise Buildings",
+      "Hospitals Or Medical Centers",
+      "Hotels Or Resorts",
+      "Retail Stores Or Malls",
+      "Stadiums Or Casinos",
+      "Airports Or Transportation Hubs",
+      "Apartment Buildings or Condominiums",
+    ],
+  },
+  {
+    categoryTitle: "Other Information",
+    questions: ["Applicant Name:", "Contact Date:"],
+  },
+  {
+    categoryTitle: "Types Of Conduit Reference Key",
+    questions: [
+      "Conduit Type",
+      "Electrical Metallic Tubing (EMT)",
+      "Rigid Nonmetallic Conduit (RNC)",
+      "PVC Conduit",
+      "Rigid Metal Conduit (RMC)",
+      "Galvanized Rigid Steel (GRC)",
+    ],
+  },
+];
+
+module.exports = electricianInterviewQuestionnaire;

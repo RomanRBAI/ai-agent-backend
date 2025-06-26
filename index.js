@@ -8,6 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const PDFDocument = require("pdfkit");
 const listOfAsks = require("./asks");
+const electricianInterviewQuestionnaire = require("./electrician");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -74,14 +75,6 @@ app.post("/send-sms", async (req, res) => {
      - Willingness to take a drug test (if required)
   4. Responding empathetically and conversationally.
   5. Summarizing what you’ve learned to ensure accuracy and completeness.
-
-  # Adaptation Logic
-
-  Use the known fields from the application form:
-  - If 'emergencyContact' is missing, ask for it.
-  - If 'hasReliableTransport' is not provided, ask: “Do you have reliable transportation to and from work?”
-  - If 'willingToDoDrugTest' is missing, ask politely if the candidate is comfortable with it.
-  - If resume is missing, ask them to briefly summarize their past work experience.
 
   # Role-Specific Questions
 
@@ -226,6 +219,7 @@ async function fetchLatestTranscriptAndSendPDFEmail() {
       summary,
       transcript,
       convoId: latest.conversation_id,
+      electricianInterviewQuestionnaire: electricianInterviewQuestionnaire,
     });
 
     await transporter.sendMail({
@@ -253,6 +247,7 @@ function generateTranscriptPDF({
   summary,
   transcript,
   convoId,
+  electricianInterviewQuestionnaire = [], // Ensure it's passed as an array
 }) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40 });
@@ -260,6 +255,7 @@ function generateTranscriptPDF({
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
+    // Header with candidate info
     doc
       .fontSize(22)
       .fillColor("#003366")
@@ -281,6 +277,7 @@ function generateTranscriptPDF({
     doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#cccccc").stroke();
     doc.moveDown(1.2);
 
+    // Interview Summary section
     doc
       .fontSize(16)
       .fillColor("#000000")
@@ -288,6 +285,92 @@ function generateTranscriptPDF({
     doc.moveDown(0.4);
     doc.fontSize(12).fillColor("#222").text(summary);
 
+    // New: Electrician Interview Questionnaire Table
+    doc.moveDown(1.2);
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#cccccc").stroke();
+    doc.moveDown(1);
+
+    doc
+      .fontSize(18)
+      .fillColor("#003366")
+      .text("Electrician Interview Questionnaire", { align: "center" });
+    doc.moveDown(0.5);
+
+    // Table Headers
+    const tableTop = doc.y;
+    const questionX = 40;
+    const answerX = 430; // Starting X for the answer column
+    const columnWidth = 380; // Width for questions
+    const answerLineWidth = 120; // Width of the answer line
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(12)
+      .fillColor("#000000")
+      .text("Questions", questionX, tableTop + 10, { width: columnWidth });
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(12)
+      .fillColor("#000000")
+      .text("Answers", answerX, tableTop + 10);
+
+    doc
+      .moveTo(questionX, tableTop + 30)
+      .lineTo(questionX + columnWidth, tableTop + 30)
+      .strokeColor("#000000")
+      .stroke();
+    doc
+      .moveTo(answerX, tableTop + 30)
+      .lineTo(answerX + answerLineWidth, tableTop + 30)
+      .strokeColor("#000000")
+      .stroke();
+    doc.moveDown(0.8); // Move down after headers
+
+    // Table Content
+    electricianInterviewQuestionnaire.forEach((category) => {
+      // Category Title
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(13)
+        .fillColor("#003366")
+        .text(category.categoryTitle, questionX, doc.y, { paragraphGap: 5 });
+      doc.moveDown(0.2);
+
+      category.questions.forEach((question) => {
+        // Handle special formatting for bullet points within questions (like in Electrical Skills)
+        const lines = question.split("• ");
+        lines.forEach((line, index) => {
+          if (line.trim().length === 0 && index !== 0) return; // Skip empty lines created by split for first element
+
+          const displayLine = index === 0 ? line : `• ${line.trim()}`;
+
+          const startY = doc.y; // Capture the Y position before adding text
+          doc
+            .font("Helvetica")
+            .fontSize(10)
+            .fillColor("#000000")
+            .text(displayLine, questionX, doc.y, {
+              width: columnWidth,
+              align: "left",
+              lineGap: 2,
+            });
+
+          // Draw the answer line next to the question text
+          const lineY = doc.y - 5; // Position the line slightly above the current Y to align with text baseline
+          doc
+            .moveTo(answerX, lineY)
+            .lineTo(answerX + answerLineWidth, lineY)
+            .strokeColor("#cccccc")
+            .stroke();
+
+          // Ensure next question or line starts on a new line
+          doc.moveDown(0.5); // Adjust spacing as needed
+        });
+      });
+      doc.moveDown(0.8); // Space after each category
+    });
+
+    // Full Transcript section (Existing)
     doc.moveDown(1.2);
     doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#cccccc").stroke();
     doc.moveDown(1);
