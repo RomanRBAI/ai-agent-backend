@@ -7,6 +7,7 @@ const twilio = require("twilio");
 const fs = require("fs");
 const path = require("path");
 const PDFDocument = require("pdfkit");
+const { table } = require("pdfkit-table");
 const listOfAsks = require("./asks");
 const electricianInterviewQuestionnaire = require("./electrician");
 
@@ -180,40 +181,66 @@ function generateTranscriptPDF({
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
+    // Header
     doc
-      .fontSize(22)
+      .fontSize(20)
       .fillColor("#003366")
       .text(`${firstName} ${lastName}`, { align: "center" });
-    doc.fontSize(14).text(`Phone: ${phoneNumber}`, { align: "center" });
+    doc
+      .fontSize(12)
+      .fillColor("black")
+      .text(`Phone: ${phoneNumber}`, { align: "center" });
     doc.text(`Position: ${occupation}`, { align: "center" });
     doc.moveDown().moveTo(40, doc.y).lineTo(555, doc.y).stroke();
 
-    doc.moveDown().fontSize(16).text("Interview Summary", { underline: true });
-    doc.fontSize(12).text(summary);
-
+    // Summary
     doc
       .moveDown()
-      .fontSize(18)
+      .fontSize(16)
+      .fillColor("black")
+      .text("Interview Summary", { underline: true });
+    doc.fontSize(11).text(summary || "No summary available");
+    doc.moveDown();
+
+    // Table-style Interview Section
+    doc
+      .fontSize(16)
+      .fillColor("#003366")
       .text("Interview Responses", { align: "center" });
+    doc.moveDown();
+
     electricianInterviewQuestionnaire.forEach((category) => {
       doc
-        .moveDown()
         .font("Helvetica-Bold")
         .fontSize(13)
+        .fillColor("#003366")
         .text(category.categoryTitle);
-      category.questions.forEach((q) => {
-        const answer = q.fieldId && results[q.fieldId]?.value;
-        doc.font("Helvetica").fontSize(10).text(q.question);
-        doc.font("Helvetica-Oblique").text(answer || "____________________");
-        doc.moveDown(0.2);
+      doc.moveDown(0.5);
+
+      const rows = category.questions.map((q) => [
+        q.question,
+        results[q.fieldId]?.value || "—",
+      ]);
+
+      // Draw table
+      doc.table({
+        headers: ["Question", "Answer"],
+        rows,
+        options: {
+          columnSpacing: 15,
+          padding: 5,
+          width: 500,
+        },
       });
+
+      doc.moveDown();
     });
 
+    // Transcript section
     doc.moveDown().fontSize(16).text("Full Transcript", { underline: true });
     transcript.forEach(({ role, message }) => {
-      doc
-        .font("Helvetica-Bold")
-        .text(role === "agent" ? "AGENT:" : "CANDIDATE:", { continued: true });
+      const label = role === "agent" ? "AGENT:" : "CANDIDATE:";
+      doc.font("Helvetica-Bold").text(label, { continued: true });
       doc.font("Helvetica").text(` ${message}`, { paragraphGap: 8 });
     });
 
