@@ -182,6 +182,37 @@ function generateTranscriptPDF({
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
+    // Function to add a new page and redraw headers if necessary
+    const addNewPageIfNeeded = (requiredHeight, sectionTitle = null) => {
+      const bottomMargin = doc.page.height - doc.page.margins.bottom;
+      if (doc.y + requiredHeight > bottomMargin) {
+        doc.addPage();
+        // Redraw main headers for new pages in the questionnaire section
+        if (sectionTitle === "questionnaire") {
+          doc
+            .fontSize(18)
+            .fillColor("#003366")
+            .text("Electrician Interview Questionnaire (Continued)", {
+              align: "center",
+            });
+          doc.moveDown(0.5);
+          drawTableHeaders(
+            doc,
+            tableX,
+            questionColWidth,
+            answerColWidth,
+            rowPadding
+          ); // Redraw table headers
+        } else if (sectionTitle === "transcript") {
+          doc
+            .fontSize(16)
+            .fillColor("#000000")
+            .text("Full Transcript (Continued)", { underline: true });
+          doc.moveDown(0.4);
+        }
+      }
+    };
+
     // Header with candidate info
     doc
       .fontSize(22)
@@ -226,45 +257,37 @@ function generateTranscriptPDF({
     const questionColWidth = tableWidth * 0.7; // 70% for questions
     const answerColWidth = tableWidth * 0.3; // 30% for answers
     const rowPadding = 5;
-    const initialTableY = doc.y; // Capture the Y before drawing the table
+    const headerHeight = 25; // Height of the header row
 
-    // Draw table border
-    // We will draw cells individually, so no single table rect needed initially
+    // Helper to draw table headers
+    const drawTableHeaders = (document, x, qWidth, aWidth, padding) => {
+      let headerY = document.y;
+      document.rect(x, headerY, qWidth, headerHeight).stroke();
+      document.rect(x + qWidth, headerY, aWidth, headerHeight).stroke();
+      document.font("Helvetica-Bold").fontSize(12).fillColor("#000000");
+      document.text("Questions", x + padding, headerY + padding, {
+        width: qWidth - 2 * padding,
+        align: "left",
+      });
+      document.text("Answers", x + qWidth + padding, headerY + padding, {
+        width: aWidth - 2 * padding,
+        align: "left",
+      });
+      document.y = headerY + headerHeight;
+    };
 
-    // Table Headers Row
-    let currentY = initialTableY;
-    const headerHeight = 25;
-
-    // Draw header cells
-    doc.rect(tableX, currentY, questionColWidth, headerHeight).stroke();
-    doc
-      .rect(tableX + questionColWidth, currentY, answerColWidth, headerHeight)
-      .stroke();
-
-    // Place header text
-    doc.font("Helvetica-Bold").fontSize(12).fillColor("#000000");
-    doc.text("Questions", tableX + rowPadding, currentY + rowPadding, {
-      width: questionColWidth - 2 * rowPadding,
-      align: "left",
-    });
-    doc.text(
-      "Answers",
-      tableX + questionColWidth + rowPadding,
-      currentY + rowPadding,
-      { width: answerColWidth - 2 * rowPadding, align: "left" }
-    );
-    doc.y = currentY + headerHeight; // Move cursor down after headers
-
-    // Store starting Y for categories to draw the first top border
-    let categoryStartDrawY = doc.y;
+    // Draw initial table headers
+    drawTableHeaders(doc, tableX, questionColWidth, answerColWidth, rowPadding);
 
     electricianInterviewQuestionnaire.forEach((category) => {
-      // Category Title Row
-      currentY = doc.y;
-      const categoryTitleHeight = 25;
+      // Estimate space needed for category title
+      const categoryTitleEstimateHeight = 25; // Approx height for title row
+      addNewPageIfNeeded(categoryTitleEstimateHeight, "questionnaire");
 
-      // Draw category cell spanning both columns
-      doc.rect(tableX, currentY, tableWidth, categoryTitleHeight).stroke();
+      // Category Title Row
+      let currentY = doc.y;
+      const categoryTitleHeight = 25;
+      doc.rect(tableX, currentY, tableWidth, categoryTitleHeight).stroke(); // Span full width for category title
       doc.font("Helvetica-Bold").fontSize(13).fillColor("#003366");
       doc.text(
         category.categoryTitle,
@@ -293,6 +316,9 @@ function generateTranscriptPDF({
         const cellHeight =
           Math.max(questionTextHeight, answerTextHeight) + 2 * rowPadding;
         const effectiveCellHeight = Math.max(cellHeight, 20); // Minimum height for a cell
+
+        // Check if there's enough space for the current question row
+        addNewPageIfNeeded(effectiveCellHeight, "questionnaire");
 
         currentY = doc.y;
 
@@ -351,6 +377,8 @@ function generateTranscriptPDF({
 
     // Full Transcript section
     doc.moveDown(1.2);
+    // Check if enough space for transcript title before drawing line
+    addNewPageIfNeeded(30, "transcript"); // Estimate height for line and title
     doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#cccccc").stroke();
     doc.moveDown(1);
 
@@ -362,6 +390,11 @@ function generateTranscriptPDF({
 
     transcript.forEach(({ role, message }) => {
       const label = role === "agent" ? "AGENT:" : "CANDIDATE:";
+      // Estimate height for transcript line
+      const transcriptLineHeight =
+        doc.heightOfString(`${label} ${message}`, { width: tableWidth }) + 10; // + paragraphGap
+      addNewPageIfNeeded(transcriptLineHeight, "transcript");
+
       doc
         .font("Helvetica-Bold")
         .fontSize(12)
