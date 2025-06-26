@@ -226,30 +226,45 @@ function generateTranscriptPDF({
     const questionColWidth = tableWidth * 0.7; // 70% for questions
     const answerColWidth = tableWidth * 0.3; // 30% for answers
     const rowPadding = 5;
+    const initialTableY = doc.y; // Capture the Y before drawing the table
+
+    // Draw table border
+    // We will draw cells individually, so no single table rect needed initially
 
     // Table Headers Row
-    let currentY = doc.y;
-    doc.rect(tableX, currentY, questionColWidth, 25).stroke();
-    doc.rect(tableX + questionColWidth, currentY, answerColWidth, 25).stroke();
+    let currentY = initialTableY;
+    const headerHeight = 25;
+
+    // Draw header cells
+    doc.rect(tableX, currentY, questionColWidth, headerHeight).stroke();
+    doc
+      .rect(tableX + questionColWidth, currentY, answerColWidth, headerHeight)
+      .stroke();
+
+    // Place header text
     doc.font("Helvetica-Bold").fontSize(12).fillColor("#000000");
-    doc.text(
-      "Questions",
-      questionColWidth / 2 + tableX,
-      currentY + rowPadding,
-      { align: "center", width: questionColWidth, stroke: false }
-    );
+    doc.text("Questions", tableX + rowPadding, currentY + rowPadding, {
+      width: questionColWidth - 2 * rowPadding,
+      align: "left",
+    });
     doc.text(
       "Answers",
-      answerColWidth / 2 + tableX + questionColWidth,
+      tableX + questionColWidth + rowPadding,
       currentY + rowPadding,
-      { align: "center", width: answerColWidth, stroke: false }
+      { width: answerColWidth - 2 * rowPadding, align: "left" }
     );
-    doc.y = currentY + 25; // Move cursor down after headers
+    doc.y = currentY + headerHeight; // Move cursor down after headers
+
+    // Store starting Y for categories to draw the first top border
+    let categoryStartDrawY = doc.y;
 
     electricianInterviewQuestionnaire.forEach((category) => {
       // Category Title Row
       currentY = doc.y;
-      doc.rect(tableX, currentY, tableWidth, 25).stroke(); // Span full width for category title
+      const categoryTitleHeight = 25;
+
+      // Draw category cell spanning both columns
+      doc.rect(tableX, currentY, tableWidth, categoryTitleHeight).stroke();
       doc.font("Helvetica-Bold").fontSize(13).fillColor("#003366");
       doc.text(
         category.categoryTitle,
@@ -257,7 +272,7 @@ function generateTranscriptPDF({
         currentY + rowPadding,
         { width: tableWidth - 2 * rowPadding }
       );
-      doc.y = currentY + 25;
+      doc.y = currentY + categoryTitleHeight;
 
       category.questions.forEach((q) => {
         const questionText = q.question;
@@ -269,58 +284,68 @@ function generateTranscriptPDF({
         // Calculate heights for both question and answer to determine row height
         const questionTextHeight = doc.heightOfString(questionText, {
           width: questionColWidth - 2 * rowPadding,
+          lineGap: 2,
         });
         const answerTextHeight = doc.heightOfString(answerText, {
           width: answerColWidth - 2 * rowPadding,
+          lineGap: 2,
         });
         const cellHeight =
           Math.max(questionTextHeight, answerTextHeight) + 2 * rowPadding;
+        const effectiveCellHeight = Math.max(cellHeight, 20); // Minimum height for a cell
 
         currentY = doc.y;
 
         // Draw cells for the current row
-        doc.rect(tableX, currentY, questionColWidth, cellHeight).stroke();
         doc
-          .rect(tableX + questionColWidth, currentY, answerColWidth, cellHeight)
+          .rect(tableX, currentY, questionColWidth, effectiveCellHeight)
+          .stroke();
+        doc
+          .rect(
+            tableX + questionColWidth,
+            currentY,
+            answerColWidth,
+            effectiveCellHeight
+          )
           .stroke();
 
-        // Draw question text
+        // Draw question text (left aligned within its cell)
         doc.font("Helvetica").fontSize(10).fillColor("#000000");
-        doc.text(
-          questionText,
-          questionColWidth / 2 + tableX,
-          currentY + rowPadding,
-          {
-            width: questionColWidth - 2 * rowPadding,
-            align: "center", // Center align question text within its cell
-            stroke: false,
-          }
-        );
+        doc.text(questionText, tableX + rowPadding, currentY + rowPadding, {
+          width: questionColWidth - 2 * rowPadding,
+          align: "left",
+          lineGap: 2,
+          stroke: false,
+        });
 
-        // Draw answer text or blank line
-        doc.font("Helvetica-Oblique").fontSize(10).fillColor("#222"); // Slightly different color for answers
+        // Draw answer text (left aligned within its cell) or blank line
+        doc.font("Helvetica-Oblique").fontSize(10).fillColor("#222");
         if (answerText) {
           doc.text(
             answerText,
-            answerColWidth / 2 + tableX + questionColWidth,
+            tableX + questionColWidth + rowPadding,
             currentY + rowPadding,
             {
               width: answerColWidth - 2 * rowPadding,
-              align: "center", // Center align answer text within its cell
+              align: "left",
+              lineGap: 2,
               stroke: false,
             }
           );
         } else {
           // Draw a placeholder line if no answer
-          const lineY = currentY + cellHeight - rowPadding; // Position line near bottom of cell
+          const lineStartX = tableX + questionColWidth + rowPadding;
+          const lineEndX = tableX + tableWidth - rowPadding;
+          const lineY = currentY + effectiveCellHeight - rowPadding; // Position line near bottom of cell
+
           doc
-            .moveTo(tableX + questionColWidth + rowPadding, lineY)
-            .lineTo(tableX + tableWidth - rowPadding, lineY)
+            .moveTo(lineStartX, lineY)
+            .lineTo(lineEndX, lineY)
             .strokeColor("#cccccc")
             .stroke();
         }
 
-        doc.y = currentY + cellHeight; // Move cursor down for the next row
+        doc.y = currentY + effectiveCellHeight; // Move cursor down for the next row
       });
     });
 
