@@ -137,13 +137,22 @@ async function fetchLatestTranscriptAndSendPDFEmail() {
       metadata.phone_call?.external_number || metadata.phoneNumber || "Unknown";
     let { firstName, lastName, occupation } = prompts.get(phoneNumber) || {};
 
-    const pdfPath = await generateTranscriptPDF({
+    // Generate Post Call Review PDF
+    const postCallReviewPdfPath = await generatePostCallReviewPDF({
       firstName: firstName || "Unknown",
       lastName: lastName || "",
       phoneNumber,
       occupation: occupation || "Unknown",
       summary,
       transcript,
+      convoId: latest.conversation_id,
+    });
+
+    // Generate Table PDF (Questionnaire)
+    const tablePdfPath = await generateQuestionnairePDF({
+      firstName: firstName || "Unknown", // Include for header
+      lastName: lastName || "", // Include for header
+      occupation: occupation || "Unknown", // Include for header
       convoId: latest.conversation_id,
       results,
       electricianInterviewQuestionnaire,
@@ -153,19 +162,27 @@ async function fetchLatestTranscriptAndSendPDFEmail() {
       from: EMAIL_USER,
       to: EMAIL_TO,
       subject: `Interview Report: ${firstName} ${lastName}`,
-      text: `See attached interview transcript.`,
+      text: `See attached interview transcript and questionnaire.`,
       attachments: [
-        { filename: `Transcript_${latest.conversation_id}.pdf`, path: pdfPath },
+        {
+          filename: `Post_Call_Review_${latest.conversation_id}.pdf`,
+          path: postCallReviewPdfPath,
+        },
+        { filename: `Table_${latest.conversation_id}.pdf`, path: tablePdfPath },
       ],
     });
 
-    fs.unlink(pdfPath, () => console.log("Temporary PDF deleted"));
+    fs.unlink(postCallReviewPdfPath, () =>
+      console.log("Temporary Post Call Review PDF deleted")
+    );
+    fs.unlink(tablePdfPath, () => console.log("Temporary Table PDF deleted"));
   } catch (err) {
     console.error("Error in fetchLatestTranscriptAndSendPDFEmail:", err);
   }
 }
 
-function generateTranscriptPDF({
+// Function to generate the Post Call Review PDF (Summary + Transcript)
+function generatePostCallReviewPDF({
   firstName,
   lastName,
   phoneNumber,
@@ -173,37 +190,18 @@ function generateTranscriptPDF({
   summary,
   transcript,
   convoId,
-  results,
-  electricianInterviewQuestionnaire,
 }) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40 });
-    const filePath = path.join(__dirname, `transcript_${convoId}.pdf`);
+    const filePath = path.join(__dirname, `Post_Call_Review_${convoId}.pdf`);
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
-    // Function to add a new page and redraw headers if necessary
     const addNewPageIfNeeded = (requiredHeight, sectionTitle = null) => {
       const bottomMargin = doc.page.height - doc.page.margins.bottom;
       if (doc.y + requiredHeight > bottomMargin) {
         doc.addPage();
-        // Redraw main headers for new pages in the questionnaire section
-        if (sectionTitle === "questionnaire") {
-          doc
-            .fontSize(18)
-            .fillColor("#003366")
-            .text("Electrician Interview Questionnaire (Continued)", {
-              align: "center",
-            });
-          doc.moveDown(0.5);
-          drawTableHeaders(
-            doc,
-            tableX,
-            questionColWidth,
-            answerColWidth,
-            rowPadding
-          ); // Redraw table headers
-        } else if (sectionTitle === "transcript") {
+        if (sectionTitle === "transcript") {
           doc
             .fontSize(16)
             .fillColor("#000000")
@@ -241,16 +239,58 @@ function generateTranscriptPDF({
     doc.moveDown(0.4);
     doc.fontSize(12).fillColor("#222").text(summary);
 
-    // Electrician Interview Questionnaire Table
+    // Full Transcript section
     doc.moveDown(1.2);
+    addNewPageIfNeeded(30, "transcript"); // Estimate height for line and title
     doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#cccccc").stroke();
     doc.moveDown(1);
 
     doc
-      .fontSize(18)
-      .fillColor("#003366")
-      .text("Electrician Interview Questionnaire", { align: "center" });
-    doc.moveDown(0.5);
+      .fontSize(16)
+      .fillColor("#000000")
+      .text("Full Transcript", { underline: true });
+    doc.moveDown(0.4);
+
+    transcript.forEach(({ role, message }) => {
+      const label = role === "agent" ? "AGENT:" : "CANDIDATE:";
+      const transcriptLineHeight =
+        doc.heightOfString(`${label} ${message}`, {
+          width:
+            doc.page.width - doc.page.margins.left - doc.page.margins.right,
+        }) + 10; // Use full text width
+      addNewPageIfNeeded(transcriptLineHeight, "transcript");
+
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(12)
+        .fillColor("#003366")
+        .text(label, { continued: true });
+      doc
+        .font("Helvetica")
+        .fillColor("#000000")
+        .text(` ${message}`, { paragraphGap: 10 });
+    });
+
+    doc.end();
+    stream.on("finish", () => resolve(filePath));
+    stream.on("error", reject);
+  });
+}
+
+// Function to generate the Questionnaire Table PDF
+function generateQuestionnairePDF({
+  firstName,
+  lastName,
+  occupation,
+  convoId,
+  results,
+  electricianInterviewQuestionnaire,
+}) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 40 });
+    const filePath = path.join(__dirname, `Table_${convoId}.pdf`);
+    const stream = fs.createWriteStream(filePath);
+    doc.pipe(stream);
 
     const tableX = 40;
     const tableWidth = 515; // Total width from margin to margin (595 - 40*2)
@@ -276,15 +316,64 @@ function generateTranscriptPDF({
       document.y = headerY + headerHeight;
     };
 
-    // Draw initial table headers
+    const addNewPageIfNeeded = (
+      requiredHeight,
+      isFirstRowOfCategory = false
+    ) => {
+      const bottomMargin = doc.page.height - doc.page.margins.bottom;
+      // If it's the first row of a category and it doesn't fit, ensure category title + first row fit on new page
+      const additionalSpaceForCategoryHeader = isFirstRowOfCategory ? 25 : 0; // Height of category title row
+      if (
+        doc.y + requiredHeight + additionalSpaceForCategoryHeader >
+        bottomMargin
+      ) {
+        doc.addPage();
+        doc
+          .fontSize(18)
+          .fillColor("#003366")
+          .text("Electrician Interview Questionnaire (Continued)", {
+            align: "center",
+          });
+        doc.moveDown(0.5);
+        drawTableHeaders(
+          doc,
+          tableX,
+          questionColWidth,
+          answerColWidth,
+          rowPadding
+        );
+      }
+    };
+
+    // Main header for the Table PDF
+    doc
+      .fontSize(22)
+      .fillColor("#003366")
+      .text(
+        `${firstName.toUpperCase()} ${lastName.toUpperCase()} - Questionnaire`,
+        { align: "center" }
+      );
+    doc
+      .fontSize(14)
+      .fillColor("#333")
+      .text(`Position Applied: ${occupation}`, { align: "center" });
+    doc.moveDown(1);
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#cccccc").stroke();
+    doc.moveDown(1);
+
+    doc
+      .fontSize(18)
+      .fillColor("#003366")
+      .text("Electrician Interview Questionnaire", { align: "center" });
+    doc.moveDown(0.5);
+
     drawTableHeaders(doc, tableX, questionColWidth, answerColWidth, rowPadding);
 
     electricianInterviewQuestionnaire.forEach((category) => {
-      // Estimate space needed for category title
-      const categoryTitleEstimateHeight = 25; // Approx height for title row
-      addNewPageIfNeeded(categoryTitleEstimateHeight, "questionnaire");
+      // Check if category title + at least one question row fits on current page
+      // Assuming a minimum of 20 (effectiveCellHeight) for the first question cell
+      addNewPageIfNeeded(25 + 20, true); // 25 for category title, 20 for first question row
 
-      // Category Title Row
       let currentY = doc.y;
       const categoryTitleHeight = 25;
       doc.rect(tableX, currentY, tableWidth, categoryTitleHeight).stroke(); // Span full width for category title
@@ -304,7 +393,6 @@ function generateTranscriptPDF({
             ? String(results[q.fieldId].value)
             : "";
 
-        // Calculate heights for both question and answer to determine row height
         const questionTextHeight = doc.heightOfString(questionText, {
           width: questionColWidth - 2 * rowPadding,
           lineGap: 2,
@@ -317,12 +405,11 @@ function generateTranscriptPDF({
           Math.max(questionTextHeight, answerTextHeight) + 2 * rowPadding;
         const effectiveCellHeight = Math.max(cellHeight, 20); // Minimum height for a cell
 
-        // Check if there's enough space for the current question row
-        addNewPageIfNeeded(effectiveCellHeight, "questionnaire");
+        // Check if just the current question row fits
+        addNewPageIfNeeded(effectiveCellHeight);
 
         currentY = doc.y;
 
-        // Draw cells for the current row
         doc
           .rect(tableX, currentY, questionColWidth, effectiveCellHeight)
           .stroke();
@@ -335,7 +422,6 @@ function generateTranscriptPDF({
           )
           .stroke();
 
-        // Draw question text (left aligned within its cell)
         doc.font("Helvetica").fontSize(10).fillColor("#000000");
         doc.text(questionText, tableX + rowPadding, currentY + rowPadding, {
           width: questionColWidth - 2 * rowPadding,
@@ -344,7 +430,6 @@ function generateTranscriptPDF({
           stroke: false,
         });
 
-        // Draw answer text (left aligned within its cell) or blank line
         doc.font("Helvetica-Oblique").fontSize(10).fillColor("#222");
         if (answerText) {
           doc.text(
@@ -359,10 +444,9 @@ function generateTranscriptPDF({
             }
           );
         } else {
-          // Draw a placeholder line if no answer
           const lineStartX = tableX + questionColWidth + rowPadding;
           const lineEndX = tableX + tableWidth - rowPadding;
-          const lineY = currentY + effectiveCellHeight - rowPadding; // Position line near bottom of cell
+          const lineY = currentY + effectiveCellHeight - rowPadding;
 
           doc
             .moveTo(lineStartX, lineY)
@@ -371,39 +455,8 @@ function generateTranscriptPDF({
             .stroke();
         }
 
-        doc.y = currentY + effectiveCellHeight; // Move cursor down for the next row
+        doc.y = currentY + effectiveCellHeight;
       });
-    });
-
-    // Full Transcript section
-    doc.moveDown(1.2);
-    // Check if enough space for transcript title before drawing line
-    addNewPageIfNeeded(30, "transcript"); // Estimate height for line and title
-    doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor("#cccccc").stroke();
-    doc.moveDown(1);
-
-    doc
-      .fontSize(16)
-      .fillColor("#000000")
-      .text("Full Transcript", { underline: true });
-    doc.moveDown(0.4);
-
-    transcript.forEach(({ role, message }) => {
-      const label = role === "agent" ? "AGENT:" : "CANDIDATE:";
-      // Estimate height for transcript line
-      const transcriptLineHeight =
-        doc.heightOfString(`${label} ${message}`, { width: tableWidth }) + 10; // + paragraphGap
-      addNewPageIfNeeded(transcriptLineHeight, "transcript");
-
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(12)
-        .fillColor("#003366")
-        .text(label, { continued: true });
-      doc
-        .font("Helvetica")
-        .fillColor("#000000")
-        .text(` ${message}`, { paragraphGap: 10 });
     });
 
     doc.end();
