@@ -137,7 +137,6 @@ async function fetchLatestTranscriptAndSendPDFEmail() {
       metadata.phone_call?.external_number || metadata.phoneNumber || "Unknown";
     let { firstName, lastName, occupation } = prompts.get(phoneNumber) || {};
 
-    // Generate Post Call Review PDF
     const postCallReviewPdfPath = await generatePostCallReviewPDF({
       firstName: firstName || "Unknown",
       lastName: lastName || "",
@@ -148,11 +147,10 @@ async function fetchLatestTranscriptAndSendPDFEmail() {
       convoId: latest.conversation_id,
     });
 
-    // Generate Table PDF (Questionnaire)
     const tablePdfPath = await generateQuestionnairePDF({
-      firstName: firstName || "Unknown", // Include for header
-      lastName: lastName || "", // Include for header
-      occupation: occupation || "Unknown", // Include for header
+      firstName: firstName || "Unknown",
+      lastName: lastName || "",
+      occupation: occupation || "Unknown",
       convoId: latest.conversation_id,
       results,
       electricianInterviewQuestionnaire,
@@ -181,7 +179,6 @@ async function fetchLatestTranscriptAndSendPDFEmail() {
   }
 }
 
-// Function to generate the Post Call Review PDF (Summary + Transcript)
 function generatePostCallReviewPDF({
   firstName,
   lastName,
@@ -277,7 +274,6 @@ function generatePostCallReviewPDF({
   });
 }
 
-// Function to generate the Questionnaire Table PDF
 function generateQuestionnairePDF({
   firstName,
   lastName,
@@ -293,13 +289,12 @@ function generateQuestionnairePDF({
     doc.pipe(stream);
 
     const tableX = 40;
-    const tableWidth = 515; // Total width from margin to margin (595 - 40*2)
-    const questionColWidth = tableWidth * 0.7; // 70% for questions
-    const answerColWidth = tableWidth * 0.3; // 30% for answers
+    const tableWidth = 515;
+    const questionColWidth = tableWidth * 0.7;
+    const answerColWidth = tableWidth * 0.3;
     const rowPadding = 5;
-    const headerHeight = 25; // Height of the header row
+    const headerHeight = 25;
 
-    // Helper to draw table headers
     const drawTableHeaders = (document, x, qWidth, aWidth, padding) => {
       let headerY = document.y;
       document.rect(x, headerY, qWidth, headerHeight).stroke();
@@ -321,8 +316,7 @@ function generateQuestionnairePDF({
       isFirstRowOfCategory = false
     ) => {
       const bottomMargin = doc.page.height - doc.page.margins.bottom;
-      // If it's the first row of a category and it doesn't fit, ensure category title + first row fit on new page
-      const additionalSpaceForCategoryHeader = isFirstRowOfCategory ? 25 : 0; // Height of category title row
+      const additionalSpaceForCategoryHeader = isFirstRowOfCategory ? 25 : 0;
       if (
         doc.y + requiredHeight + additionalSpaceForCategoryHeader >
         bottomMargin
@@ -345,7 +339,6 @@ function generateQuestionnairePDF({
       }
     };
 
-    // Main header for the Table PDF
     doc
       .fontSize(22)
       .fillColor("#003366")
@@ -370,13 +363,11 @@ function generateQuestionnairePDF({
     drawTableHeaders(doc, tableX, questionColWidth, answerColWidth, rowPadding);
 
     electricianInterviewQuestionnaire.forEach((category) => {
-      // Check if category title + at least one question row fits on current page
-      // Assuming a minimum of 20 (effectiveCellHeight) for the first question cell
-      addNewPageIfNeeded(25 + 20, true); // 25 for category title, 20 for first question row
+      addNewPageIfNeeded(25 + 20, true);
 
       let currentY = doc.y;
       const categoryTitleHeight = 25;
-      doc.rect(tableX, currentY, tableWidth, categoryTitleHeight).stroke(); // Span full width for category title
+      doc.rect(tableX, currentY, tableWidth, categoryTitleHeight).stroke();
       doc.font("Helvetica-Bold").fontSize(13).fillColor("#003366");
       doc.text(
         category.categoryTitle,
@@ -403,9 +394,8 @@ function generateQuestionnairePDF({
         });
         const cellHeight =
           Math.max(questionTextHeight, answerTextHeight) + 2 * rowPadding;
-        const effectiveCellHeight = Math.max(cellHeight, 20); // Minimum height for a cell
+        const effectiveCellHeight = Math.max(cellHeight, 20);
 
-        // Check if just the current question row fits
         addNewPageIfNeeded(effectiveCellHeight);
 
         currentY = doc.y;
