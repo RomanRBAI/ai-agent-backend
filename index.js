@@ -74,8 +74,27 @@ ${formattedQuestions}`;
 app.post("/elevenlabs/prompt", (req, res) => {
   const { caller_id } = req.body;
   const record = prompts.get(caller_id);
-  if (!record) return res.status(404).json({ error: "Prompt not found" });
 
+  if (!record) {
+    console.warn(`⚠️ No prompt found for caller ID: ${caller_id}`);
+
+    return res.status(200).json({
+      type: "conversation_initiation_client_data",
+      conversation_config_override: {
+        agent: {
+          prompt: {
+            prompt:
+              "You are Joe, a friendly AI recruiter. Ask the candidate about their work experience, certifications, and availability.",
+          },
+          first_message:
+            "Hi, I’m Joe. Let’s begin your quick voice interview. Are you ready to start?",
+          language: "en",
+        },
+      },
+    });
+  }
+
+  // If prompt exists
   const { prompt, firstName, occupation, language } = record;
   const firstMessage =
     language === "es"
